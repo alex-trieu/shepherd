@@ -36,6 +36,7 @@ public class User {
     @ManyToMany
     private List<CreditCard> ownedCreditCards; // List of the users owned Credit Cards
 
+    // User constructor with the user's id, name, email, and a List of their owned credit cards
     public User(int id, String name, String email) {
         this.id = id;
         this.name = name;
