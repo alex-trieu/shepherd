@@ -6,8 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 @Entity
 @Getter
@@ -24,6 +26,9 @@ public class CreditCard {
 
     private String number;
 
+    @ElementCollection
+    private TreeMap<LocalDate, Double> balanceHistory;
+
     // TODO: Credit card's owner. For detailed hint, please see User class
     // Some field here <> owner;
     @ManyToMany
@@ -35,14 +40,32 @@ public class CreditCard {
     public CreditCard(String issuanceBank, String number) {
         this.issuanceBank = issuanceBank;
         this.number = number;
+        this.balanceHistory = new TreeMap<>();
     }
     public void addUser(User user) {
         this.owners.add(user);
     }
 
+    // Add a balance entry to the balance history
+    public void addBalanceTransaction(LocalDate date, double balance) {
+        balanceHistory.put(date, balance);
+    }
+
+    // Retrieve the balance for a specific date
+    public Double getBalanceForDate(LocalDate date) {
+        return balanceHistory.get(date);
+    }
+    // Method to retrieve the closest balance date for a given date
+    public LocalDate getClosestBalanceDate(LocalDate date) {
+        return balanceHistory.floorKey(date);
+    }
+
+
+
+
     // TODO: Credit card's balance history. It is a requirement that the dates in the balanceHistory
-    //       list must be in chronological order, with the most recent date appearing first in the list. 
-    //       Additionally, the last object in the "list" must have a date value that matches today's date, 
+    //       list must be in chronological order, with the most recent date appearing first in the list.
+    //       Additionally, the last object in the "list" must have a date value that matches today's date,
     //       since it represents the current balance of the credit card. For example:
     //       [
     //         {date: '2023-04-10', balance: 800},

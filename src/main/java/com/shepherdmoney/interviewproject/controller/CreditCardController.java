@@ -1,5 +1,6 @@
 package com.shepherdmoney.interviewproject.controller;
 
+import com.shepherdmoney.interviewproject.model.BalanceHistory;
 import com.shepherdmoney.interviewproject.model.CreditCard;
 import com.shepherdmoney.interviewproject.model.User;
 import com.shepherdmoney.interviewproject.repository.CreditCardRepository;
@@ -7,16 +8,17 @@ import com.shepherdmoney.interviewproject.repository.UserRepository;
 import com.shepherdmoney.interviewproject.vo.request.AddCreditCardToUserPayload;
 import com.shepherdmoney.interviewproject.vo.request.UpdateBalancePayload;
 import com.shepherdmoney.interviewproject.vo.response.CreditCardView;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
 import jakarta.xml.ws.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 
 import java.sql.Array;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -82,47 +84,104 @@ public class CreditCardController {
 
     @GetMapping("/credit-card:all")
     public ResponseEntity<List<CreditCardView>> getAllCardOfUser(@RequestParam int userId) {
-        // TODO: return a list of all credit card associated with the given userId, using CreditCardView class
-        //       if the user has no credit card, return empty list, never return null
+        // Retrieve the user entity based on the provided userId
         Optional<User> optionalUser = userRepository.findById(userId);
+
+        // Check if the user exists
         if (optionalUser.isPresent()) {
+            // If the user exists, retrieve the user entity
             User user = optionalUser.get();
+
+            // Initialize a list to store CreditCardView objects
             List<CreditCardView> creditCardViews = new ArrayList<>();
+
+            // Iterate through each credit card owned by the user
             for (CreditCard credit : user.getOwnedCreditCards()) {
+                // Create a CreditCardView object for each credit card and add it to the list
                 creditCardViews.add(new CreditCardView(credit.getIssuanceBank(), credit.getNumber()));
             }
+
+            // Return a response entity with the list of CreditCardView objects
             return ResponseEntity.ok().body(creditCardViews);
         } else {
+            // If the user does not exist or has no credit cards, return an empty list
             return ResponseEntity.ok().body(new ArrayList<>());
         }
     }
 
+
     @GetMapping("/credit-card:user-id")
     public ResponseEntity<Integer> getUserIdForCreditCard(@RequestParam String creditCardNumber) {
-        // TODO: Given a credit card number, efficiently find whether there is a user associated with the credit card
-        //       If so, return the user id in a 200 OK response. If no such user exists, return 400 Bad Request
+        // Retrieve the credit card entity based on the provided credit card number
         CreditCard currCredit = creditCardRepository.findByNumber(creditCardNumber);
+
+        // Check if the credit card exists and is associated with any user
         if (!currCredit.getOwners().isEmpty()) {
+            // If the credit card is associated with a user, retrieve the user id of the first owner
             User firstOwner = currCredit.getOwners().get(0);
+
+            // Return the user id in a 200 OK response
             return ResponseEntity.ok(firstOwner.getId());
         }
+
+        // If no such user exists for the credit card, return 400 Bad Request
         return ResponseEntity.badRequest().build();
     }
 
+
     @PostMapping("/credit-card:update-balance")
     public ResponseEntity<String> postMethodName(@RequestBody UpdateBalancePayload[] payload) {
-        //TODO: Given a list of transactions, update credit cards' balance history.
-        //      1. For the balance history in the credit card
-        //      2. If there are gaps between two balance dates, fill the empty date with the balance of the previous date
-        //      3. Given the payload `payload`, calculate the balance different between the payload and the actual balance stored in the database
-        //      4. If the different is not 0, update all the following budget with the difference
-        //      For example: if today is 4/12, a credit card's balanceHistory is [{date: 4/12, balance: 110}, {date: 4/10, balance: 100}],
-        //      Given a balance amount of {date: 4/11, amount: 110}, the new balanceHistory is
-        //      [{date: 4/12, balance: 120}, {date: 4/11, balance: 110}, {date: 4/10, balance: 100}]
-        //      Return 200 OK if update is done and successful, 400 Bad Request if the given card number
-        //        is not associated with a card.
-        
-        return null;
+        for (UpdateBalancePayload transaction : payload) {
+            CreditCard creditCard = creditCardRepository.findByNumber(transaction.getCreditCardNumber());
+            if (creditCard == null) {
+                return ResponseEntity.badRequest().body("Credit card not found for credit card number: " + transaction.getCreditCardNumber());
+            }
+            TreeMap<LocalDate, Double> balanceHistory = creditCard.getBalanceHistory();
+            balanceHistory.put(transaction.getBalanceDate(), transaction.getBalanceAmount());
+            // Fill the gaps between two balance dates
+            fillBalanceHistoryGaps(balanceHistory);
+
+            // Update all the following balance entries if needed
+            updateFollowingBalances(balanceHistory, transaction.getBalanceDate(), transaction.getBalanceAmount());
+
+            // Save the updated credit card entity
+            creditCardRepository.save(creditCard);
+        }
+        return ResponseEntity.ok("Credit card balance updated");
     }
-    
-}
+    // Helper function to fill gaps between two balance dates
+    private void fillBalanceHistoryGaps(TreeMap<LocalDate, Double> balanceHistory) {
+        // Get the set of dates in the balance history
+        Set<LocalDate> dates = balanceHistory.keySet();
+        // Iterate through the dates and fill gaps
+        LocalDate previousDate = null;
+        for (LocalDate currentDate : dates) {
+            if (previousDate != null) {
+                // Fill the gap between previous date and current date
+                LocalDate date = previousDate.minusDays(1);
+                while (!date.isEqual(currentDate)) {
+                    balanceHistory.put(date, balanceHistory.get(previousDate)); // Fill with previous balance
+                    date = date.minusDays(1);
+                }
+            }
+            previousDate = currentDate;
+        }
+    }
+    // Helper function to update following balance entries if needed
+    private void updateFollowingBalances(TreeMap<LocalDate, Double> balanceHistory, LocalDate balanceDate, double balanceAmount) {
+        // Get the entry set of the balance history
+        Set<Map.Entry<LocalDate, Double>> entrySet = balanceHistory.entrySet();
+        // Iterate through the entries and update following balances
+        for (Map.Entry<LocalDate, Double> entry : entrySet) {
+            LocalDate date = entry.getKey();
+            if (date.isAfter(balanceDate)) {
+                // Calculate the difference between the new balance and the existing balance
+                double difference = balanceAmount - entry.getValue();
+                // Update the balance with the difference
+                entry.setValue(entry.getValue() + difference);
+            }
+        }
+    }
+    }
+
+
