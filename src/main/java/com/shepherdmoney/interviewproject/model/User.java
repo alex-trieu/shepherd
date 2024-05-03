@@ -33,14 +33,17 @@ public class User {
     // TODO: User's credit card
     // HINT: A user can have one or more, or none at all. We want to be able to query credit cards by user
     //       and user by a credit card.
-    @ManyToMany
+    @ManyToMany(mappedBy = "owners")
     private List<CreditCard> ownedCreditCards; // List of the users owned Credit Cards
 
     // User constructor with the user's id, name, email, and a List of their owned credit cards
-    public User(int id, String name, String email) {
-        this.id = id;
+    public User(String name, String email) {
         this.name = name;
         this.email = email;
         this.ownedCreditCards = new ArrayList<>();
+    }
+
+    public void addCreditCard(CreditCard creditCard) {
+        this.ownedCreditCards.add(creditCard);
     }
 }

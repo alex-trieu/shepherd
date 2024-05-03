@@ -10,4 +10,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository("CreditCardRepo")
 public interface CreditCardRepository extends JpaRepository<CreditCard, Integer> {
+    CreditCard findByNumber(String number);
+    CreditCard findByIssuanceBankAndNumber(String issuanceBank, String number);
+
 }

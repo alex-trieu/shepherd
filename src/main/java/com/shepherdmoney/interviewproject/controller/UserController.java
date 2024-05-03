@@ -2,9 +2,12 @@ package com.shepherdmoney.interviewproject.controller;
 
 import com.shepherdmoney.interviewproject.model.CreditCard;
 import com.shepherdmoney.interviewproject.model.User;
+import com.shepherdmoney.interviewproject.repository.CreditCardRepository;
 import com.shepherdmoney.interviewproject.repository.UserRepository;
 import com.shepherdmoney.interviewproject.vo.request.CreateUserPayload;
 import org.apache.coyote.Response;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,7 +17,10 @@ import java.util.ArrayList;
 public class UserController {
 
     // TODO: wire in the user repository (~ 1 line)
-    private static UserRepository userRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private CreditCardRepository creditCardRepository;
     /**
      * Creates a new user entity with information provided in the payload,
      * stores it in the database, and returns the ID of the user in a 200 OK response.
@@ -28,17 +34,21 @@ public class UserController {
         String userName = payload.getName();
         String userEmail = payload.getEmail();
 
-        // Generates a unique user ID using payload's hashCode
-        int userID = payload.hashCode();
+        // Looks if the request contains a duplicate email
+        User existingUser = userRepository.findByEmail(userEmail);
+        if (existingUser != null) {
+            // If a user with the same email already exists, return a conflict response
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
 
         // Constructs new User utilizing the user's ID, name, and email.
-        User newUser = new User(userID, userName, userEmail);
+        User newUser = new User(userName, userEmail);
 
         // Stores newUser into our userRepository
         userRepository.save(newUser);
 
         // Returns the ID of the new User in a ResponseEntity in a 200 OK response
-        return ResponseEntity.ok(userID);
+        return ResponseEntity.ok(newUser.getId());
     }
 
     /**
@@ -59,6 +69,6 @@ public class UserController {
 
         // Return a 400 Bad Request response with a body indicating that
         // the requested user does not exist within our userRepository
-        return ResponseEntity.badRequest().body("User with ID: " + userId + " does not exist");
+        return ResponseEntity.badRequest().body("User with ID: " + userId + ", does not exist");
     }
 }

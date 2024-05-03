@@ -27,12 +27,20 @@ public class CreditCard {
     // TODO: Credit card's owner. For detailed hint, please see User class
     // Some field here <> owner;
     @ManyToMany
+    @JoinTable(name = "user_credit_card",
+            joinColumns = @JoinColumn(name = "credit_card_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id"))
     List<User> owners = new ArrayList<>();
 
+    public CreditCard(String issuanceBank, String number) {
+        this.issuanceBank = issuanceBank;
+        this.number = number;
+    }
+    public void addUser(User user) {
+        this.owners.add(user);
+    }
 
-
-
-    // TODO: Credit card's balance history. It is a requirement that the dates in the balanceHistory 
+    // TODO: Credit card's balance history. It is a requirement that the dates in the balanceHistory
     //       list must be in chronological order, with the most recent date appearing first in the list. 
     //       Additionally, the last object in the "list" must have a date value that matches today's date, 
     //       since it represents the current balance of the credit card. For example:
